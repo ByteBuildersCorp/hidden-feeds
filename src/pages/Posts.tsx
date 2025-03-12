@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import PostCard from '@/components/posts/PostCard';
 import { Post } from '@/lib/types';
@@ -44,11 +43,9 @@ const Posts = () => {
           throw postsError;
         }
         
-        // Fetch likes counts for posts
+        // Fetch likes counts for posts using a different approach
         const { data: likesData, error: likesError } = await supabase
-          .from('post_likes')
-          .select('post_id, count(*)', { count: 'exact', head: false })
-          .group('post_id');
+          .rpc('get_post_likes_count');
         
         if (likesError) {
           console.error('Error fetching likes:', likesError);
@@ -61,12 +58,9 @@ const Posts = () => {
           likesMap.set(item.post_id, parseInt(item.count));
         });
         
-        // Fetch comments counts for posts
+        // Fetch comments counts for posts using a different approach
         const { data: commentsData, error: commentsError } = await supabase
-          .from('comments')
-          .select('post_id, count(*)', { count: 'exact', head: false })
-          .not('post_id', 'is', null)
-          .group('post_id');
+          .rpc('get_post_comments_count');
         
         if (commentsError) {
           console.error('Error fetching comments:', commentsError);
