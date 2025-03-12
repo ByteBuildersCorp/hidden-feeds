@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus } from 'lucide-react';
@@ -98,9 +99,11 @@ const Index = () => {
         
         // Create a map of post IDs to likes counts
         const likesMap = new Map();
-        likesData?.forEach(item => {
-          likesMap.set(item.post_id, parseInt(item.count));
-        });
+        if (likesData) {
+          likesData.forEach(item => {
+            likesMap.set(item.post_id, parseInt(item.count.toString()));
+          });
+        }
         
         // Fetch comments counts for posts using a different approach
         const { data: postCommentsData, error: postCommentsError } = await supabase
@@ -113,9 +116,11 @@ const Index = () => {
         
         // Create a map of post IDs to comment counts
         const postCommentsMap = new Map();
-        postCommentsData?.forEach(item => {
-          postCommentsMap.set(item.post_id, parseInt(item.count));
-        });
+        if (postCommentsData) {
+          postCommentsData.forEach(item => {
+            postCommentsMap.set(item.post_id, parseInt(item.count.toString()));
+          });
+        }
         
         // Format posts data
         const formattedPosts: Post[] = postsData.map(post => ({

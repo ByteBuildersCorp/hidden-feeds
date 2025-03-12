@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import PostCard from '@/components/posts/PostCard';
 import { Post } from '@/lib/types';
@@ -54,9 +55,11 @@ const Posts = () => {
         
         // Create a map of post IDs to likes counts
         const likesMap = new Map();
-        likesData?.forEach(item => {
-          likesMap.set(item.post_id, parseInt(item.count));
-        });
+        if (likesData) {
+          likesData.forEach(item => {
+            likesMap.set(item.post_id, parseInt(item.count.toString()));
+          });
+        }
         
         // Fetch comments counts for posts using a different approach
         const { data: commentsData, error: commentsError } = await supabase
@@ -69,9 +72,11 @@ const Posts = () => {
         
         // Create a map of post IDs to comment counts
         const commentsMap = new Map();
-        commentsData?.forEach(item => {
-          commentsMap.set(item.post_id, parseInt(item.count));
-        });
+        if (commentsData) {
+          commentsData.forEach(item => {
+            commentsMap.set(item.post_id, parseInt(item.count.toString()));
+          });
+        }
         
         // Format posts data
         const formattedPosts: Post[] = postsData.map(post => ({

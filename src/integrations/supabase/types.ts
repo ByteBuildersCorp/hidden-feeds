@@ -262,7 +262,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_post_comments_count: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          post_id: string
+          count: number
+        }[]
+      }
+      get_post_likes_count: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          post_id: string
+          count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
