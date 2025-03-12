@@ -16,33 +16,29 @@ serve(async (req) => {
   try {
     const { content, type } = await req.json()
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call Gemini API
+    const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
         'Content-Type': 'application/json',
+        'x-goog-api-key': Deno.env.get('GEMINI_API_KEY') || '',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: type === 'poll' 
-              ? 'You are a helpful assistant that provides constructive feedback on poll questions. Keep your feedback concise, positive, and actionable.'
-              : 'You are a helpful assistant that provides constructive feedback on social media posts. Keep your feedback concise, positive, and actionable.'
-          },
-          {
-            role: 'user',
-            content: type === 'poll'
-              ? `Please review this poll question and provide suggestions to make it more engaging: "${content}"`
-              : `Please review this post and provide suggestions to make it more engaging: "${content}"`
-          }
-        ],
+        contents: [{
+          parts: [{
+            text: type === 'poll' 
+              ? `Please review this poll question and provide suggestions to make it more engaging and effective. Keep your feedback concise, positive, and actionable: "${content}"`
+              : `Please review this social media post and provide suggestions to make it more engaging and effective. Keep your feedback concise, positive, and actionable: "${content}"`
+          }]
+        }]
       }),
     })
-
+    
     const data = await response.json()
-    const feedback = data.choices[0].message.content
+    console.log('Gemini API response:', data)
+    
+    // Extract feedback from Gemini's response
+    const feedback = data.candidates[0].content.parts[0].text
 
     return new Response(
       JSON.stringify({ feedback }),
