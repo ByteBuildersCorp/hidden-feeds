@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus } from 'lucide-react';
@@ -91,7 +92,7 @@ const Index = () => {
         const { data: likesData, error: likesError } = await supabase
           .from('post_likes')
           .select('post_id, count(*)', { count: 'exact', head: false })
-          .groupby('post_id');
+          .group('post_id');
         
         if (likesError) {
           console.error('Error fetching likes:', likesError);
@@ -109,7 +110,7 @@ const Index = () => {
           .from('comments')
           .select('post_id, count(*)', { count: 'exact', head: false })
           .not('post_id', 'is', null)
-          .groupby('post_id');
+          .group('post_id');
         
         if (postCommentsError) {
           console.error('Error fetching post comments:', postCommentsError);

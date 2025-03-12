@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import PostCard from '@/components/posts/PostCard';
 import { Post } from '@/lib/types';
@@ -47,7 +48,7 @@ const Posts = () => {
         const { data: likesData, error: likesError } = await supabase
           .from('post_likes')
           .select('post_id, count(*)', { count: 'exact', head: false })
-          .groupby('post_id');
+          .group('post_id');
         
         if (likesError) {
           console.error('Error fetching likes:', likesError);
@@ -65,7 +66,7 @@ const Posts = () => {
           .from('comments')
           .select('post_id, count(*)', { count: 'exact', head: false })
           .not('post_id', 'is', null)
-          .groupby('post_id');
+          .group('post_id');
         
         if (commentsError) {
           console.error('Error fetching comments:', commentsError);
