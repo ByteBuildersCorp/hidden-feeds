@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import PostCard from '@/components/posts/PostCard';
 import { Post } from '@/lib/types';
@@ -47,8 +46,8 @@ const Posts = () => {
         // Fetch likes counts for posts
         const { data: likesData, error: likesError } = await supabase
           .from('post_likes')
-          .select('post_id, count')
-          .select('post_id', { count: 'exact', groupBy: 'post_id' });
+          .select('post_id, count(*)', { count: 'exact', head: false })
+          .groupby('post_id');
         
         if (likesError) {
           console.error('Error fetching likes:', likesError);
@@ -64,8 +63,9 @@ const Posts = () => {
         // Fetch comments counts for posts
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
-          .select('post_id')
-          .not('post_id', 'is', null);
+          .select('post_id, count(*)', { count: 'exact', head: false })
+          .not('post_id', 'is', null)
+          .groupby('post_id');
         
         if (commentsError) {
           console.error('Error fetching comments:', commentsError);
@@ -75,8 +75,7 @@ const Posts = () => {
         // Create a map of post IDs to comment counts
         const commentsMap = new Map();
         commentsData?.forEach(item => {
-          const count = commentsMap.get(item.post_id) || 0;
-          commentsMap.set(item.post_id, count + 1);
+          commentsMap.set(item.post_id, parseInt(item.count));
         });
         
         // Format posts data

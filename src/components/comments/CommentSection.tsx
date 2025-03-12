@@ -19,6 +19,7 @@ interface Comment {
     username: string;
     email: string;
     image?: string;
+    created_at: string;
   };
 }
 
@@ -61,7 +62,8 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
             name,
             username,
             email,
-            image
+            image,
+            created_at
           )
         `)
         .eq(contentType === 'post' ? 'post_id' : 'poll_id', contentId)
@@ -127,7 +129,8 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
             name,
             username,
             email,
-            image
+            image,
+            created_at
           )
         `);
       
@@ -204,7 +207,14 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
             return (
               <div key={comment.id} className="flex items-start gap-2">
                 <UserAvatar 
-                  user={comment.is_anonymous ? null : comment.author || null} 
+                  user={comment.is_anonymous ? null : comment.author ? {
+                    id: comment.author.id,
+                    name: comment.author.name,
+                    username: comment.author.username,
+                    email: comment.author.email,
+                    image: comment.author.image,
+                    createdAt: new Date(comment.author.created_at)
+                  } : null} 
                   isAnonymous={comment.is_anonymous}
                   size="sm"
                 />
