@@ -3,7 +3,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, BarChart, User, PlusCircle, LogOut } from 'lucide-react';
+import { Home, BarChart, User, PlusCircle, LogOut, MessageSquarePlus } from 'lucide-react';
 import UserAvatar from '@/components/ui/UserAvatar';
 
 const Navbar = () => {
@@ -20,6 +20,12 @@ const Navbar = () => {
       label: 'Polls',
       icon: <BarChart size={20} />,
       path: '/polls',
+    },
+    {
+      label: 'Post',
+      icon: <MessageSquarePlus size={20} />,
+      path: '/create-post',
+      requiresAuth: true,
     },
     {
       label: 'Profile',
