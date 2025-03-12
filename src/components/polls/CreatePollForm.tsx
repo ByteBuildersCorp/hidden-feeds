@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import UserAvatar from '@/components/ui/UserAvatar';
-import { User, Plus, X } from 'lucide-react';
+import { User, Plus, X, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -12,12 +11,13 @@ const CreatePollForm = () => {
   const [options, setOptions] = useState(['', '']);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGettingFeedback, setIsGettingFeedback] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   useEffect(() => {
-    // Set anonymous status based on user's default preference
     if (user && user.defaultAnonymous) {
       setIsAnonymous(user.defaultAnonymous);
     }
@@ -55,6 +55,45 @@ const CreatePollForm = () => {
     setOptions(newOptions);
   };
   
+  const getFeedback = async () => {
+    if (!question.trim()) {
+      toast({
+        title: "Cannot get feedback",
+        description: "Please enter a question first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGettingFeedback(true);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content-feedback`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: question.trim(),
+          type: 'poll'
+        }),
+      });
+
+      const data = await response.json();
+      setAiFeedback(data.feedback);
+    } catch (error) {
+      console.error('Error getting feedback:', error);
+      toast({
+        title: "Failed to get feedback",
+        description: "There was an error getting AI feedback. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGettingFeedback(false);
+    }
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -88,7 +127,6 @@ const CreatePollForm = () => {
     setIsSubmitting(true);
     
     try {
-      // Create the poll first
       const { data: pollData, error: pollError } = await supabase
         .from('polls')
         .insert({
@@ -96,22 +134,28 @@ const CreatePollForm = () => {
           author_id: user.id,
           is_anonymous: isAnonymous,
           total_votes: 0,
-          // Add expiry date if needed
-          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(), // 7 days from now
+          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(),
         })
-        .select();
+        .select()
+        .single();
       
       if (pollError) throw pollError;
-      
-      if (!pollData || pollData.length === 0) {
-        throw new Error('Failed to create poll');
+
+      if (aiFeedback) {
+        const { error: commentError } = await supabase
+          .from('comments')
+          .insert({
+            content: aiFeedback,
+            author_id: user.id,
+            poll_id: pollData.id,
+            is_anonymous: true,
+          });
+
+        if (commentError) throw commentError;
       }
       
-      const pollId = pollData[0].id;
-      
-      // Create the poll options
       const optionsToInsert = options.map(option => ({
-        poll_id: pollId,
+        poll_id: pollData.id,
         text: option.trim(),
         votes: 0,
       }));
@@ -195,6 +239,13 @@ const CreatePollForm = () => {
               />
             </div>
             
+            {aiFeedback && (
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium mb-2">AI Suggestion:</p>
+                <p className="text-sm text-muted-foreground">{aiFeedback}</p>
+              </div>
+            )}
+            
             <div>
               <label className="block text-sm font-medium mb-2">
                 Options
@@ -230,21 +281,33 @@ const CreatePollForm = () => {
               </button>
             </div>
             
-            <div className="flex justify-end items-center gap-3 mt-6">
+            <div className="flex justify-between items-center gap-3 mt-6">
               <button
                 type="button"
-                onClick={handleCancel}
-                className="px-4 py-2 border rounded-md hover:bg-muted transition-colors"
+                onClick={getFeedback}
+                disabled={isGettingFeedback || !question.trim()}
+                className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
               >
-                Cancel
+                <Wand2 size={16} />
+                {isGettingFeedback ? 'Getting Feedback...' : 'Get AI Feedback'}
               </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || !question.trim() || options.some(option => !option.trim())}
-                className="btn-primary"
-              >
-                {isSubmitting ? 'Creating Poll...' : 'Create Poll'}
-              </button>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-4 py-2 border rounded-md hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !question.trim() || options.some(option => !option.trim())}
+                  className="btn-primary"
+                >
+                  {isSubmitting ? 'Creating Poll...' : 'Create Poll'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
