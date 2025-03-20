@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState('');
+  const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,21 +43,19 @@ const Auth = () => {
     
     try {
       if (isLogin) {
-        // Optimistic UI update
-        toast({
-          title: "Logging in...",
-          description: "Verifying your credentials",
-        });
-        
-        await login(username, password);
+        await login(usernameOrEmail, password);
       } else {
-        // Optimistic UI update
-        toast({
-          title: "Creating account...",
-          description: "Setting up your profile",
-        });
+        if (!email.includes('@')) {
+          toast({
+            title: "Invalid email",
+            description: "Please enter a valid email address",
+            variant: "destructive"
+          });
+          setIsSubmitting(false);
+          return;
+        }
         
-        await register(email, password, username);
+        await register(email, password, usernameOrEmail);
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -71,7 +69,7 @@ const Auth = () => {
     
     setIsLogin(!isLogin);
     // Reset form fields when toggling
-    setUsername('');
+    setUsernameOrEmail('');
     setEmail('');
     setPassword('');
   };
@@ -114,15 +112,15 @@ const Auth = () => {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1">
-              Username
+            <label htmlFor="usernameOrEmail" className="block text-sm font-medium mb-1">
+              {isLogin ? 'Username or Email' : 'Username'}
             </label>
             <Input
-              id="username"
+              id="usernameOrEmail"
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="johndoe"
+              value={usernameOrEmail}
+              onChange={(e) => setUsernameOrEmail(e.target.value)}
+              placeholder={isLogin ? "username or you@example.com" : "johndoe"}
               required
               disabled={isSubmitting || isLoading}
               className="w-full"

@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/lib/types';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, checkUsernameExists, getUserByEmail } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from 'react-router-dom';
 
@@ -9,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (usernameOrEmail: string, password: string) => Promise<void>;
   register: (email: string, password: string, username?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -122,22 +121,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (usernameOrEmail: string, password: string) => {
     try {
       setIsLoading(true);
       
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('username', username)
-        .single();
+      toast({
+        title: "Logging in...",
+        description: "Verifying your credentials",
+      });
       
-      if (profileError) {
-        throw new Error('Username not found');
+      let email = usernameOrEmail;
+      
+      if (!usernameOrEmail.includes('@')) {
+        const profile = await checkUsernameExists(usernameOrEmail);
+        
+        if (!profile || !profile.email) {
+          throw new Error('Username not found');
+        }
+        
+        email = profile.email;
+      } else {
+        const profile = await getUserByEmail(usernameOrEmail);
+        if (!profile) {
+          throw new Error('Email not found');
+        }
       }
       
       const { error } = await supabase.auth.signInWithPassword({
-        email: profiles.email,
+        email,
         password,
       });
       
@@ -155,6 +166,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: error.message || "Please check your credentials and try again.",
         variant: "destructive",
       });
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -166,14 +178,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       const username = providedUsername || generateRandomUsername();
       
-      const { data: existingUser, error: checkError } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', username)
-        .single();
-      
-      if (existingUser) {
+      const existingProfile = await checkUsernameExists(username);
+      if (existingProfile) {
         throw new Error('Username is already taken');
+      }
+      
+      const existingEmail = await getUserByEmail(email);
+      if (existingEmail) {
+        throw new Error('Email is already registered');
       }
       
       const { error } = await supabase.auth.signUp({
@@ -202,6 +214,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: error.message || "Please try again with different information.",
         variant: "destructive",
       });
+      console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -211,14 +224,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       
-      // First clear the user state to prevent any further requests
       setUser(null);
       
       const { error } = await supabase.auth.signOut();
       
       if (error) throw error;
       
-      // Close any active Supabase connections
       supabase.removeAllChannels();
       
       toast({

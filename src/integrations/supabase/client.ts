@@ -15,6 +15,7 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'implicit',
+      storage: localStorage,
     },
   }
 );
@@ -24,3 +25,35 @@ supabase.auth.onAuthStateChange((event, session) => {
   console.log('Supabase auth event:', event);
   console.log('Session:', session);
 });
+
+// Additional helper function to check if username exists in profiles
+export const checkUsernameExists = async (username: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('username', username)
+    .maybeSingle();
+  
+  if (error) {
+    console.error('Error checking username:', error);
+    return null;
+  }
+  
+  return data;
+};
+
+// Helper function to get user by email
+export const getUserByEmail = async (email: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+  
+  if (error) {
+    console.error('Error fetching user by email:', error);
+    return null;
+  }
+  
+  return data;
+};
