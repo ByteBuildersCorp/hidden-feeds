@@ -34,21 +34,53 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!contentId) {
+      console.error('No content ID provided to CommentSection');
+      setIsLoading(false);
+      return;
+    }
+    
     fetchComments();
     
     // Set anonymous status based on user's default preference
     if (user && user.defaultAnonymous) {
       setIsAnonymous(user.defaultAnonymous);
     }
+    
+    // Subscribe to changes
+    const channel = supabase
+      .channel(`comments:${contentType}:${contentId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'comments',
+        filter: contentType === 'post' 
+          ? `post_id=eq.${contentId}` 
+          : `poll_id=eq.${contentId}`
+      }, () => {
+        fetchComments();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [contentId, contentType, user]);
 
   const fetchComments = async () => {
+    if (!contentId) return;
+    
     setIsLoading(true);
+    setFetchError(null);
+    
     try {
+      console.log(`Fetching comments for ${contentType} ID: ${contentId}`);
+      
       const { data, error } = await supabase
         .from('comments')
         .select(`
@@ -69,14 +101,19 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
         .eq(contentType === 'post' ? 'post_id' : 'poll_id', contentId)
         .order('created_at', { ascending: true });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching comments:', error);
+        throw error;
+      }
       
+      console.log('Fetched comments:', data);
       setComments(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching comments:', error);
+      setFetchError(error.message);
       toast({
         title: "Error",
-        description: "Failed to load comments.",
+        description: "Failed to load comments. Please refresh and try again.",
         variant: "destructive",
       });
     } finally {
@@ -105,15 +142,28 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
       return;
     }
     
+    if (!contentId) {
+      toast({
+        title: "Error",
+        description: "Content ID is missing. Cannot add comment.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
+      console.log(`Adding comment to ${contentType} ID: ${contentId}`);
+      
       const commentData = {
         content: newComment.trim(),
         author_id: user.id,
         is_anonymous: isAnonymous,
         [contentType === 'post' ? 'post_id' : 'poll_id']: contentId
       };
+      
+      console.log('Comment data:', commentData);
       
       const { data, error } = await supabase
         .from('comments')
@@ -136,15 +186,22 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
       
       if (error) throw error;
       
+      console.log('Comment added:', data);
+      
       if (data) {
         setComments([...comments, ...data]);
         setNewComment('');
+        
+        toast({
+          title: "Comment added",
+          description: "Your comment has been posted successfully.",
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting comment:', error);
       toast({
         title: "Error",
-        description: "Failed to submit comment.",
+        description: error.message || "Failed to submit comment. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -170,15 +227,32 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
         title: "Comment deleted",
         description: "Your comment has been deleted successfully.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting comment:', error);
       toast({
         title: "Error",
-        description: "Failed to delete comment.",
+        description: error.message || "Failed to delete comment. Please try again.",
         variant: "destructive",
       });
     }
   };
+
+  if (fetchError) {
+    return (
+      <div className="border-t px-4 py-3">
+        <h3 className="text-sm font-medium mb-3">Comments</h3>
+        <div className="text-center py-4">
+          <p className="text-sm text-destructive">Failed to load comments. Please refresh and try again.</p>
+          <button 
+            onClick={fetchComments}
+            className="mt-2 text-xs text-primary hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="border-t px-4 py-3">
@@ -222,7 +296,7 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
                   <div className="bg-muted/50 rounded-lg p-2 relative">
                     <div className="flex justify-between items-start">
                       <p className="text-xs font-medium">
-                        {comment.is_anonymous ? 'Anonymous' : comment.author?.name}
+                        {comment.is_anonymous ? 'Anonymous' : comment.author?.name || comment.author?.username || 'Unknown User'}
                       </p>
                       {isAuthor && (
                         <button 

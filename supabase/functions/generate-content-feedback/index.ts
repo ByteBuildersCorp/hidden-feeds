@@ -16,6 +16,15 @@ serve(async (req) => {
   try {
     const { content, type } = await req.json()
     
+    if (!content || !type) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: content and type' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+    
+    console.log(`Generating ${type} feedback for content: ${content.substring(0, 50)}...`)
+    
     // Call Gemini API
     const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent', {
       method: 'POST',
@@ -35,10 +44,22 @@ serve(async (req) => {
     })
     
     const data = await response.json()
-    console.log('Gemini API response:', data)
+    console.log('Gemini API response:', JSON.stringify(data))
+    
+    // Check for errors in Gemini response
+    if (data.error) {
+      console.error('Gemini API error:', data.error)
+      throw new Error(`Gemini API error: ${data.error.message || 'Unknown error'}`)
+    }
+    
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
+      console.error('Unexpected Gemini API response format:', data)
+      throw new Error('Unexpected response format from Gemini API')
+    }
     
     // Extract feedback from Gemini's response
     const feedback = data.candidates[0].content.parts[0].text
+    console.log('Generated feedback:', feedback)
 
     return new Response(
       JSON.stringify({ feedback }),
@@ -47,7 +68,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to generate feedback' }),
+      JSON.stringify({ error: error.message || 'Failed to generate feedback' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

@@ -9,6 +9,7 @@ const Auth = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   
@@ -20,11 +21,16 @@ const Auth = () => {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    if (isLogin) {
-      await login(username, password);
-    } else {
-      await register(email, password, username);
+    try {
+      if (isLogin) {
+        await login(username, password);
+      } else {
+        await register(email, password, username);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -65,6 +71,7 @@ const Auth = () => {
               className="w-full p-3 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="johndoe"
               required
+              disabled={isSubmitting || isLoading}
             />
           </div>
           
@@ -81,6 +88,7 @@ const Auth = () => {
                 className="w-full p-3 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="you@example.com"
                 required
+                disabled={isSubmitting || isLoading}
               />
             </div>
           )}
@@ -97,15 +105,16 @@ const Auth = () => {
               className="w-full p-3 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="••••••••"
               required
+              disabled={isSubmitting || isLoading}
             />
           </div>
           
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || isSubmitting}
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-md font-medium transition-colors flex items-center justify-center"
           >
-            {isLoading ? (
+            {isLoading || isSubmitting ? (
               <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
             ) : isLogin ? (
               <>
@@ -124,6 +133,7 @@ const Auth = () => {
         <div className="mt-6 text-center">
           <button
             onClick={toggleAuthMode}
+            disabled={isSubmitting || isLoading}
             className="text-primary hover:underline text-sm font-medium"
           >
             {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
