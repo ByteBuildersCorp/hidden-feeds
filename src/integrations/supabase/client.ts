@@ -26,17 +26,18 @@ supabase.auth.onAuthStateChange((event, session) => {
   console.log('Session:', session);
 });
 
-// Additional helper function to check if username exists in profiles
+// Helper function to check if username exists in profiles
 export const checkUsernameExists = async (username: string) => {
+  // Case insensitive search for username
   const { data, error } = await supabase
     .from('profiles')
     .select('email')
-    .eq('username', username)
+    .ilike('username', username)
     .maybeSingle();
   
   if (error) {
     console.error('Error checking username:', error);
-    return null;
+    throw error;
   }
   
   return data;
@@ -47,12 +48,12 @@ export const getUserByEmail = async (email: string) => {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('email', email)
+    .ilike('email', email)
     .maybeSingle();
   
   if (error) {
     console.error('Error fetching user by email:', error);
-    return null;
+    throw error;
   }
   
   return data;

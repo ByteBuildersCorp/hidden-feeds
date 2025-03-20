@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/lib/types';
 import { supabase, checkUsernameExists, getUserByEmail } from '@/integrations/supabase/client';
@@ -130,23 +131,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: "Verifying your credentials",
       });
       
+      // Check if input is email format
+      const isEmail = usernameOrEmail.includes('@');
       let email = usernameOrEmail;
       
-      if (!usernameOrEmail.includes('@')) {
-        const profile = await checkUsernameExists(usernameOrEmail);
+      if (!isEmail) {
+        // Search for username in profiles table
+        const userProfile = await checkUsernameExists(usernameOrEmail);
         
-        if (!profile || !profile.email) {
+        if (!userProfile || !userProfile.email) {
           throw new Error('Username not found');
         }
         
-        email = profile.email;
-      } else {
-        const profile = await getUserByEmail(usernameOrEmail);
-        if (!profile) {
-          throw new Error('Email not found');
-        }
+        email = userProfile.email;
       }
       
+      // Attempt login with email
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -178,16 +178,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       const username = providedUsername || generateRandomUsername();
       
-      const existingProfile = await checkUsernameExists(username);
-      if (existingProfile) {
-        throw new Error('Username is already taken');
+      // Check if username already exists
+      if (providedUsername) {
+        const existingProfile = await checkUsernameExists(providedUsername);
+        if (existingProfile) {
+          throw new Error('Username is already taken');
+        }
       }
       
+      // Check if email already exists
       const existingEmail = await getUserByEmail(email);
       if (existingEmail) {
         throw new Error('Email is already registered');
       }
       
+      // Register new user
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -230,6 +235,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (error) throw error;
       
+      // Clear all realtime subscriptions
       supabase.removeAllChannels();
       
       toast({
