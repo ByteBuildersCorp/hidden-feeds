@@ -125,13 +125,13 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         .from('comments')
         .delete()
         .eq('poll_id', poll.id)
-        .select('id', { count: 'exact' });
+        .select('id');
       
       if (commentsError) {
         console.error("Error deleting comments:", commentsError);
         throw commentsError;
       }
-      console.log(`Deleted ${commentsDeleted} comments`);
+      console.log(`Deleted ${commentsDeleted?.length || 0} comments`);
       
       // Delete user votes
       console.log("Deleting votes for poll ID:", poll.id);
@@ -139,13 +139,13 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         .from('user_votes')
         .delete()
         .eq('poll_id', poll.id)
-        .select('id', { count: 'exact' });
+        .select('id');
       
       if (votesError) {
         console.error("Error deleting votes:", votesError);
         throw votesError;
       }
-      console.log(`Deleted ${votesDeleted} votes`);
+      console.log(`Deleted ${votesDeleted?.length || 0} votes`);
       
       // Delete poll options
       console.log("Deleting options for poll ID:", poll.id);
@@ -153,13 +153,13 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         .from('poll_options')
         .delete()
         .eq('poll_id', poll.id)
-        .select('id', { count: 'exact' });
+        .select('id');
       
       if (optionsError) {
         console.error("Error deleting poll options:", optionsError);
         throw optionsError;
       }
-      console.log(`Deleted ${optionsDeleted} options`);
+      console.log(`Deleted ${optionsDeleted?.length || 0} options`);
       
       // Finally delete the poll itself
       console.log("Deleting poll with ID:", poll.id);
