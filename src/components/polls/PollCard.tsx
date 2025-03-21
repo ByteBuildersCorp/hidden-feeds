@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Poll, PollOption } from '@/lib/types';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -23,7 +22,7 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
-  const [showResults, setShowResults] = useState(true); // New state for showing/hiding results
+  const [showResults, setShowResults] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -118,38 +117,63 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
     setIsDeleting(true);
     
     try {
-      // First, delete related comments
-      const { error: commentsError } = await supabase
+      console.log("Starting poll deletion process for poll ID:", poll.id);
+      
+      // Delete related comments
+      console.log("Deleting comments for poll ID:", poll.id);
+      const { error: commentsError, count: commentsDeleted } = await supabase
         .from('comments')
         .delete()
-        .eq('poll_id', poll.id);
+        .eq('poll_id', poll.id)
+        .select('id', { count: 'exact' });
       
-      if (commentsError) throw commentsError;
+      if (commentsError) {
+        console.error("Error deleting comments:", commentsError);
+        throw commentsError;
+      }
+      console.log(`Deleted ${commentsDeleted} comments`);
       
-      // Then delete user votes
-      const { error: votesError } = await supabase
+      // Delete user votes
+      console.log("Deleting votes for poll ID:", poll.id);
+      const { error: votesError, count: votesDeleted } = await supabase
         .from('user_votes')
         .delete()
-        .eq('poll_id', poll.id);
+        .eq('poll_id', poll.id)
+        .select('id', { count: 'exact' });
       
-      if (votesError) throw votesError;
+      if (votesError) {
+        console.error("Error deleting votes:", votesError);
+        throw votesError;
+      }
+      console.log(`Deleted ${votesDeleted} votes`);
       
-      // Then delete poll options
-      const { error: optionsError } = await supabase
+      // Delete poll options
+      console.log("Deleting options for poll ID:", poll.id);
+      const { error: optionsError, count: optionsDeleted } = await supabase
         .from('poll_options')
         .delete()
-        .eq('poll_id', poll.id);
+        .eq('poll_id', poll.id)
+        .select('id', { count: 'exact' });
       
-      if (optionsError) throw optionsError;
+      if (optionsError) {
+        console.error("Error deleting poll options:", optionsError);
+        throw optionsError;
+      }
+      console.log(`Deleted ${optionsDeleted} options`);
       
       // Finally delete the poll itself
+      console.log("Deleting poll with ID:", poll.id);
       const { error } = await supabase
         .from('polls')
         .delete()
         .eq('id', poll.id);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error deleting poll:", error);
+        throw error;
+      }
       
+      console.log("Poll deleted successfully");
       toast({
         title: "Poll deleted",
         description: "Your poll has been deleted successfully.",
