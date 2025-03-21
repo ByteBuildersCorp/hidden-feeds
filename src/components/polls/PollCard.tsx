@@ -121,7 +121,7 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
       
       // Delete related comments
       console.log("Deleting comments for poll ID:", poll.id);
-      const { error: commentsError, count: commentsDeleted } = await supabase
+      const { error: commentsError, data: commentsDeleted } = await supabase
         .from('comments')
         .delete()
         .eq('poll_id', poll.id)
@@ -131,11 +131,11 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         console.error("Error deleting comments:", commentsError);
         throw commentsError;
       }
-      console.log(`Deleted ${commentsDeleted?.length || 0} comments`);
+      console.log(`Deleted ${commentsDeleted.length} comments`);
       
       // Delete user votes
       console.log("Deleting votes for poll ID:", poll.id);
-      const { error: votesError, count: votesDeleted } = await supabase
+      const { error: votesError, data: votesDeleted } = await supabase
         .from('user_votes')
         .delete()
         .eq('poll_id', poll.id)
@@ -145,11 +145,11 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         console.error("Error deleting votes:", votesError);
         throw votesError;
       }
-      console.log(`Deleted ${votesDeleted?.length || 0} votes`);
+      console.log(`Deleted ${votesDeleted.length} votes`);
       
       // Delete poll options
       console.log("Deleting options for poll ID:", poll.id);
-      const { error: optionsError, count: optionsDeleted } = await supabase
+      const { error: optionsError, data: optionsDeleted } = await supabase
         .from('poll_options')
         .delete()
         .eq('poll_id', poll.id)
@@ -159,7 +159,7 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         console.error("Error deleting poll options:", optionsError);
         throw optionsError;
       }
-      console.log(`Deleted ${optionsDeleted?.length || 0} options`);
+      console.log(`Deleted ${optionsDeleted.length} options`);
       
       // Finally delete the poll itself
       console.log("Deleting poll with ID:", poll.id);
