@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -6,12 +5,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PostCard from '@/components/posts/PostCard';
 import PollCard from '@/components/polls/PollCard';
 import { Post, Poll } from '@/lib/types';
-import { User, Save, Loader2 } from 'lucide-react';
+import { User, Save, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const Profile = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
   const [defaultAnonymous, setDefaultAnonymous] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [userPolls, setUserPolls] = useState<Poll[]>([]);
@@ -21,6 +30,9 @@ const Profile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState('');
+  const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const { toast } = useToast();
   
   useEffect(() => {
@@ -37,7 +49,6 @@ const Profile = () => {
     try {
       setIsLoading(true);
       
-      // Fetch user's public posts
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select(`
@@ -54,7 +65,6 @@ const Profile = () => {
       
       if (postsError) throw postsError;
       
-      // Fetch user's anonymous posts
       const { data: anonymousPostsData, error: anonymousPostsError } = await supabase
         .from('posts')
         .select(`
@@ -71,7 +81,6 @@ const Profile = () => {
       
       if (anonymousPostsError) throw anonymousPostsError;
       
-      // Fetch user's public polls
       const { data: pollsData, error: pollsError } = await supabase
         .from('polls')
         .select(`
@@ -89,7 +98,6 @@ const Profile = () => {
       
       if (pollsError) throw pollsError;
       
-      // Fetch user's anonymous polls
       const { data: anonymousPollsData, error: anonymousPollsError } = await supabase
         .from('polls')
         .select(`
@@ -107,7 +115,6 @@ const Profile = () => {
       
       if (anonymousPollsError) throw anonymousPollsError;
       
-      // Fetch poll options for all polls
       const pollIds = [...(pollsData || []), ...(anonymousPollsData || [])].map(poll => poll.id);
       
       let pollOptionsMap: Record<string, any[]> = {};
@@ -120,7 +127,6 @@ const Profile = () => {
         
         if (optionsError) throw optionsError;
         
-        // Group options by poll_id
         pollOptionsMap = (optionsData || []).reduce((acc, option) => {
           if (!acc[option.poll_id]) {
             acc[option.poll_id] = [];
@@ -134,7 +140,6 @@ const Profile = () => {
         }, {} as Record<string, any[]>);
       }
       
-      // Transform data to match the app's data structure
       const transformedPosts = (postsData || []).map(post => ({
         id: post.id,
         content: post.content,
@@ -143,8 +148,8 @@ const Profile = () => {
         isAnonymous: post.is_anonymous,
         createdAt: new Date(post.created_at),
         updatedAt: new Date(post.updated_at),
-        likes: 0, // To be implemented
-        comments: 0, // To be implemented
+        likes: 0,
+        comments: 0,
       }));
       
       const transformedAnonymousPosts = (anonymousPostsData || []).map(post => ({
@@ -155,8 +160,8 @@ const Profile = () => {
         isAnonymous: post.is_anonymous,
         createdAt: new Date(post.created_at),
         updatedAt: new Date(post.updated_at),
-        likes: 0, // To be implemented
-        comments: 0, // To be implemented
+        likes: 0,
+        comments: 0,
       }));
       
       const transformedPolls = (pollsData || []).map(poll => ({
@@ -220,9 +225,7 @@ const Profile = () => {
         description: "Your profile settings have been updated successfully."
       });
       
-      // Update local user state if necessary
       if (user.name !== name || user.defaultAnonymous !== defaultAnonymous) {
-        // This will trigger a re-fetch in a real implementation
         fetchUserContent();
       }
     } catch (error) {
@@ -235,6 +238,89 @@ const Profile = () => {
     } finally {
       setIsSaving(false);
       setEditingName(false);
+    }
+  };
+  
+  const handlePollDeleted = (pollId: string) => {
+    setUserPolls(prev => prev.filter(poll => poll.id !== pollId));
+    setAnonymousPolls(prev => prev.filter(poll => poll.id !== pollId));
+  };
+  
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    if (deleteConfirmText.toLowerCase() !== 'delete my account') {
+      toast({
+        title: "Confirmation text doesn't match",
+        description: "Please type 'delete my account' to confirm deletion",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsDeletingAccount(true);
+    
+    try {
+      await supabase.from('user_votes').delete().eq('user_id', user.id);
+      await supabase.from('post_likes').delete().eq('user_id', user.id);
+      
+      const { data: userPollsData } = await supabase
+        .from('polls')
+        .select('id')
+        .eq('author_id', user.id);
+      
+      if (userPollsData) {
+        const pollIds = userPollsData.map(poll => poll.id);
+        
+        if (pollIds.length > 0) {
+          await supabase.from('poll_options').delete().in('poll_id', pollIds);
+          await supabase.from('user_votes').delete().in('poll_id', pollIds);
+          await supabase.from('comments').delete().in('poll_id', pollIds);
+        }
+      }
+      
+      await supabase.from('polls').delete().eq('author_id', user.id);
+      
+      const { data: userPostsData } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('author_id', user.id);
+      
+      if (userPostsData) {
+        const postIds = userPostsData.map(post => post.id);
+        
+        if (postIds.length > 0) {
+          await supabase.from('comments').delete().in('post_id', postIds);
+          await supabase.from('post_likes').delete().in('post_id', postIds);
+        }
+      }
+      
+      await supabase.from('posts').delete().eq('author_id', user.id);
+      await supabase.from('comments').delete().eq('author_id', user.id);
+      
+      await supabase.from('profiles').delete().eq('id', user.id);
+      
+      const { error } = await supabase.auth.admin.deleteUser(user.id);
+      
+      if (error) throw error;
+      
+      await logout();
+      
+      toast({
+        title: "Account deleted",
+        description: "Your account has been deleted successfully.",
+      });
+      
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete account: " + error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteAccountDialog(false);
     }
   };
   
@@ -370,9 +456,64 @@ const Profile = () => {
               </div>
               
               <div className="pt-2 border-t mt-4">
-                <button className="text-destructive hover:text-destructive/80 text-sm font-medium transition-colors">
-                  Delete account
-                </button>
+                <Dialog open={showDeleteAccountDialog} onOpenChange={setShowDeleteAccountDialog}>
+                  <DialogTrigger asChild>
+                    <button className="text-destructive hover:text-destructive/80 text-sm font-medium transition-colors">
+                      Delete account
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center text-destructive">
+                        <AlertTriangle className="mr-2" size={18} />
+                        Delete your account?
+                      </DialogTitle>
+                      <DialogDescription>
+                        This action cannot be undone. All your posts, polls, comments, and other data will be permanently deleted.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                      <p className="text-sm text-muted-foreground">
+                        Type <span className="font-bold">delete my account</span> to confirm:
+                      </p>
+                      <input
+                        type="text"
+                        className="w-full p-2 border rounded"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="delete my account"
+                      />
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowDeleteAccountDialog(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleDeleteAccount}
+                        disabled={isDeletingAccount || deleteConfirmText.toLowerCase() !== 'delete my account'}
+                        className="flex items-center gap-2"
+                      >
+                        {isDeletingAccount ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={16} />
+                            Delete Account
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
           </div>
@@ -419,7 +560,7 @@ const Profile = () => {
                 ) : userPolls.length > 0 ? (
                   <div className="space-y-4">
                     {userPolls.map(poll => (
-                      <PollCard key={poll.id} poll={poll} />
+                      <PollCard key={poll.id} poll={poll} onDelete={() => handlePollDeleted(poll.id)} />
                     ))}
                   </div>
                 ) : (
@@ -440,7 +581,7 @@ const Profile = () => {
                       <PostCard key={post.id} post={post} />
                     ))}
                     {anonymousPolls.map(poll => (
-                      <PollCard key={poll.id} poll={poll} />
+                      <PollCard key={poll.id} poll={poll} onDelete={() => handlePollDeleted(poll.id)} />
                     ))}
                   </div>
                 ) : (

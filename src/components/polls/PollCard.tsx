@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Poll, PollOption } from '@/lib/types';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -12,9 +11,10 @@ import CommentSection from '@/components/comments/CommentSection';
 
 interface PollCardProps {
   poll: Poll;
+  onDelete?: () => void;
 }
 
-const PollCard = ({ poll }: PollCardProps) => {
+const PollCard = ({ poll, onDelete }: PollCardProps) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [pollData, setPollData] = useState<PollOption[]>(poll.options);
@@ -26,7 +26,6 @@ const PollCard = ({ poll }: PollCardProps) => {
   const { toast } = useToast();
   
   useEffect(() => {
-    // Check if user has already voted
     const checkVoteStatus = async () => {
       if (!user) return;
       
@@ -43,7 +42,6 @@ const PollCard = ({ poll }: PollCardProps) => {
       }
     };
     
-    // Get comment count
     const getCommentCount = async () => {
       const { count } = await supabase
         .from('comments')
@@ -70,7 +68,6 @@ const PollCard = ({ poll }: PollCardProps) => {
     if (hasVoted) return;
     
     try {
-      // Insert the vote
       const { error } = await supabase
         .from('user_votes')
         .insert({
@@ -84,7 +81,6 @@ const PollCard = ({ poll }: PollCardProps) => {
       setSelectedOption(optionId);
       setHasVoted(true);
       
-      // Update the poll data with the new vote
       setPollData(prev => 
         prev.map(option => 
           option.id === optionId 
@@ -120,6 +116,27 @@ const PollCard = ({ poll }: PollCardProps) => {
     setIsDeleting(true);
     
     try {
+      const { error: votesError } = await supabase
+        .from('user_votes')
+        .delete()
+        .eq('poll_id', poll.id);
+      
+      if (votesError) throw votesError;
+      
+      const { error: optionsError } = await supabase
+        .from('poll_options')
+        .delete()
+        .eq('poll_id', poll.id);
+      
+      if (optionsError) throw optionsError;
+      
+      const { error: commentsError } = await supabase
+        .from('comments')
+        .delete()
+        .eq('poll_id', poll.id);
+      
+      if (commentsError) throw commentsError;
+      
       const { error } = await supabase
         .from('polls')
         .delete()
@@ -132,13 +149,16 @@ const PollCard = ({ poll }: PollCardProps) => {
         description: "Your poll has been deleted successfully.",
       });
       
-      // Refresh the page to update the list
-      window.location.reload();
-    } catch (error) {
+      if (onDelete) {
+        onDelete();
+      } else {
+        window.location.reload();
+      }
+    } catch (error: any) {
       console.error('Error deleting poll:', error);
       toast({
         title: "Error",
-        description: "Failed to delete poll.",
+        description: "Failed to delete poll: " + error.message,
         variant: "destructive",
       });
     } finally {
@@ -156,7 +176,6 @@ const PollCard = ({ poll }: PollCardProps) => {
           url: window.location.href,
         });
       } else {
-        // Fallback for browsers that don't support the Web Share API
         await navigator.clipboard.writeText(window.location.href);
         toast({
           title: "Link copied",
@@ -172,7 +191,6 @@ const PollCard = ({ poll }: PollCardProps) => {
   const timeAgo = formatDistanceToNow(new Date(poll.createdAt), { addSuffix: true });
   const isAuthor = user && user.id === poll.authorId;
   
-  // Calculate when the poll ends
   const pollEndsText = poll.expiresAt 
     ? formatDistanceToNow(new Date(poll.expiresAt), { addSuffix: true }) 
     : null;
@@ -284,7 +302,6 @@ const PollCard = ({ poll }: PollCardProps) => {
         </div>
       </div>
       
-      {/* Actions */}
       <div className="border-t flex items-center justify-between px-4 py-2">
         <button 
           onClick={() => setShowComments(!showComments)}
@@ -310,7 +327,6 @@ const PollCard = ({ poll }: PollCardProps) => {
         </button>
       </div>
       
-      {/* Comments Section */}
       {showComments && (
         <CommentSection contentId={poll.id} contentType="poll" />
       )}

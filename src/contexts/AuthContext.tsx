@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/lib/types';
 import { supabase, checkUsernameExists, getUserByEmail } from '@/integrations/supabase/client';
