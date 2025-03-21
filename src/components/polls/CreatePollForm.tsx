@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -80,13 +81,29 @@ const CreatePollForm = () => {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response from API:', errorText);
+        throw new Error(`API returned status ${response.status}`);
+      }
+
       const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
       setAiFeedback(data.feedback);
+      
+      toast({
+        title: "AI Feedback Generated",
+        description: "Review the suggestions to improve your poll.",
+      });
     } catch (error) {
       console.error('Error getting feedback:', error);
       toast({
         title: "Failed to get feedback",
-        description: "There was an error getting AI feedback. Please try again.",
+        description: error instanceof Error ? error.message : "There was an error getting AI feedback. Please try again.",
         variant: "destructive",
       });
     } finally {

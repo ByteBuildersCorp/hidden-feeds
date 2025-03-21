@@ -25,12 +25,15 @@ serve(async (req) => {
     
     console.log(`Generating ${type} feedback for content: ${content.substring(0, 50)}...`)
     
+    // API key is directly specified for now - ideally this would be in environment variables
+    const geminiApiKey = 'AIzaSyBm1wPFL0YFa_McnWRXlWrB9-BE37LUsP4'
+    
     // Call Gemini API
     const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': Deno.env.get('GEMINI_API_KEY') || '',
+        'x-goog-api-key': geminiApiKey,
       },
       body: JSON.stringify({
         contents: [{
@@ -42,6 +45,12 @@ serve(async (req) => {
         }]
       }),
     })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Gemini API error response:', errorText)
+      throw new Error(`Gemini API returned status ${response.status}: ${errorText}`)
+    }
     
     const data = await response.json()
     console.log('Gemini API response:', JSON.stringify(data))
