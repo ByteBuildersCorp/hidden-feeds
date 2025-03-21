@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Poll, PollOption } from '@/lib/types';
 import UserAvatar from '@/components/ui/UserAvatar';
-import { BarChart2, Share2, MoreHorizontal, Trash2, X, MessageSquare } from 'lucide-react';
+import { BarChart2, Share2, MoreHorizontal, Trash2, X, MessageSquare, Eye, EyeOff } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +23,7 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
+  const [showResults, setShowResults] = useState(true); // New state for showing/hiding results
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -34,7 +36,7 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         .select('option_id')
         .eq('poll_id', poll.id)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       
       if (data) {
         setSelectedOption(data.option_id);
@@ -116,20 +118,7 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
     setIsDeleting(true);
     
     try {
-      const { error: votesError } = await supabase
-        .from('user_votes')
-        .delete()
-        .eq('poll_id', poll.id);
-      
-      if (votesError) throw votesError;
-      
-      const { error: optionsError } = await supabase
-        .from('poll_options')
-        .delete()
-        .eq('poll_id', poll.id);
-      
-      if (optionsError) throw optionsError;
-      
+      // First, delete related comments
       const { error: commentsError } = await supabase
         .from('comments')
         .delete()
@@ -137,6 +126,23 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
       
       if (commentsError) throw commentsError;
       
+      // Then delete user votes
+      const { error: votesError } = await supabase
+        .from('user_votes')
+        .delete()
+        .eq('poll_id', poll.id);
+      
+      if (votesError) throw votesError;
+      
+      // Then delete poll options
+      const { error: optionsError } = await supabase
+        .from('poll_options')
+        .delete()
+        .eq('poll_id', poll.id);
+      
+      if (optionsError) throw optionsError;
+      
+      // Finally delete the poll itself
       const { error } = await supabase
         .from('polls')
         .delete()
@@ -151,8 +157,6 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
       
       if (onDelete) {
         onDelete();
-      } else {
-        window.location.reload();
       }
     } catch (error: any) {
       console.error('Error deleting poll:', error);
@@ -185,6 +189,10 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
     } catch (error) {
       console.error('Error sharing poll:', error);
     }
+  };
+  
+  const toggleResults = () => {
+    setShowResults(!showResults);
   };
   
   const totalVotes = pollData.reduce((sum, option) => sum + option.votes, 0);
@@ -272,11 +280,11 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
                   >
                     <div className="flex justify-between">
                       <span>{option.text}</span>
-                      {hasVoted && <span className="font-medium">{percentage}%</span>}
+                      {(hasVoted && showResults) && <span className="font-medium">{percentage}%</span>}
                     </div>
                   </button>
                   
-                  {hasVoted && (
+                  {(hasVoted && showResults) && (
                     <div 
                       className={cn(
                         "absolute inset-0 bg-primary/10 rounded-md z-0 transition-all duration-500",
@@ -312,10 +320,11 @@ const PollCard = ({ poll, onDelete }: PollCardProps) => {
         </button>
         
         <button 
+          onClick={toggleResults}
           className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 px-2 py-1 rounded-md transition-colors"
         >
-          <BarChart2 size={16} />
-          <span>Results</span>
+          {showResults ? <EyeOff size={16} /> : <Eye size={16} />}
+          <span>{showResults ? 'Hide Results' : 'Show Results'}</span>
         </button>
         
         <button 

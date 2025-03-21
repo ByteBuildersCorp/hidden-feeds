@@ -13,13 +13,14 @@ interface Comment {
   author_id: string;
   is_anonymous: boolean;
   created_at: string;
-  author?: {
+  profiles?: {
     id: string;
-    name: string;
-    username: string;
-    email: string;
-    image?: string;
+    name: string | null;
+    username: string | null;
+    email: string | null;
+    image: string | null;
     created_at: string;
+    default_anonymous: boolean | null;
   };
 }
 
@@ -81,6 +82,7 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
     try {
       console.log(`Fetching comments for ${contentType} ID: ${contentId}`);
       
+      // Fixed the query to properly join with profiles
       const { data, error } = await supabase
         .from('comments')
         .select(`
@@ -89,13 +91,14 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
           author_id,
           is_anonymous,
           created_at,
-          profiles:author_id (
+          profiles(
             id,
             name,
             username,
             email,
             image,
-            created_at
+            created_at,
+            default_anonymous
           )
         `)
         .eq(contentType === 'post' ? 'post_id' : 'poll_id', contentId)
@@ -165,31 +168,28 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
       
       console.log('Comment data:', commentData);
       
-      const { data, error } = await supabase
+      // Insert the comment
+      const { data: newCommentData, error } = await supabase
         .from('comments')
         .insert(commentData)
-        .select(`
-          id,
-          content,
-          author_id,
-          is_anonymous,
-          created_at,
-          profiles:author_id (
-            id,
-            name,
-            username,
-            email,
-            image,
-            created_at
-          )
-        `);
+        .select();
       
       if (error) throw error;
       
-      console.log('Comment added:', data);
-      
-      if (data) {
-        setComments([...comments, ...data]);
+      // Fetch the profile data for the new comment
+      if (newCommentData && newCommentData.length > 0) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        const newCommentWithProfile = {
+          ...newCommentData[0],
+          profiles: profileData
+        };
+        
+        setComments([...comments, newCommentWithProfile]);
         setNewComment('');
         
         toast({
@@ -281,13 +281,14 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
             return (
               <div key={comment.id} className="flex items-start gap-2">
                 <UserAvatar 
-                  user={comment.is_anonymous ? null : comment.author ? {
-                    id: comment.author.id,
-                    name: comment.author.name,
-                    username: comment.author.username,
-                    email: comment.author.email,
-                    image: comment.author.image,
-                    createdAt: new Date(comment.author.created_at)
+                  user={comment.is_anonymous ? null : comment.profiles ? {
+                    id: comment.profiles.id,
+                    name: comment.profiles.name || "",
+                    username: comment.profiles.username || "",
+                    email: comment.profiles.email || "",
+                    image: comment.profiles.image,
+                    createdAt: new Date(comment.profiles.created_at),
+                    defaultAnonymous: comment.profiles.default_anonymous || false
                   } : null} 
                   isAnonymous={comment.is_anonymous}
                   size="sm"
@@ -296,7 +297,7 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
                   <div className="bg-muted/50 rounded-lg p-2 relative">
                     <div className="flex justify-between items-start">
                       <p className="text-xs font-medium">
-                        {comment.is_anonymous ? 'Anonymous' : comment.author?.name || comment.author?.username || 'Unknown User'}
+                        {comment.is_anonymous ? 'Anonymous' : comment.profiles?.name || comment.profiles?.username || 'Unknown User'}
                       </p>
                       {isAuthor && (
                         <button 
