@@ -82,35 +82,42 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
     try {
       console.log(`Fetching comments for ${contentType} ID: ${contentId}`);
       
-      // Fixed the query to properly join with profiles
-      const { data, error } = await supabase
+      // Use two separate queries to get comments and profiles
+      const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
-        .select(`
-          id,
-          content,
-          author_id,
-          is_anonymous,
-          created_at,
-          profiles(
-            id,
-            name,
-            username,
-            email,
-            image,
-            created_at,
-            default_anonymous
-          )
-        `)
+        .select('*')
         .eq(contentType === 'post' ? 'post_id' : 'poll_id', contentId)
         .order('created_at', { ascending: true });
       
-      if (error) {
-        console.error('Error fetching comments:', error);
-        throw error;
+      if (commentsError) {
+        console.error('Error fetching comments:', commentsError);
+        throw commentsError;
       }
       
-      console.log('Fetched comments:', data);
-      setComments(data || []);
+      // For comments with authors, fetch their profiles
+      const commentsWithProfiles = await Promise.all(
+        (commentsData || []).map(async (comment) => {
+          if (comment.is_anonymous) {
+            return { ...comment, profiles: null };
+          }
+          
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', comment.author_id)
+            .single();
+            
+          if (profileError) {
+            console.error(`Error fetching profile for author ${comment.author_id}:`, profileError);
+            return { ...comment, profiles: null };
+          }
+          
+          return { ...comment, profiles: profileData };
+        })
+      );
+      
+      console.log('Fetched comments with profiles:', commentsWithProfiles);
+      setComments(commentsWithProfiles);
     } catch (error: any) {
       console.error('Error fetching comments:', error);
       setFetchError(error.message);
@@ -177,16 +184,21 @@ const CommentSection = ({ contentId, contentType }: CommentSectionProps) => {
       if (error) throw error;
       
       // Fetch the profile data for the new comment
-      if (newCommentData && newCommentData.length > 0) {
-        const { data: profileData } = await supabase
+      let profileData = null;
+      if (!isAnonymous && user && newCommentData && newCommentData.length > 0) {
+        const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
           
+        profileData = profile;
+      }
+          
+      if (newCommentData && newCommentData.length > 0) {
         const newCommentWithProfile = {
           ...newCommentData[0],
-          profiles: profileData
+          profiles: isAnonymous ? null : profileData
         };
         
         setComments([...comments, newCommentWithProfile]);
